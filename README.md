@@ -8,7 +8,7 @@ Based on the configuration system, the following conversions are supported:
 
 | Input Format | Output Formats | Primary Method | Fallback Methods |
 |-------------|---------------|----------------|------------------|
-| `.doc` | `docx`, `pdf` | LibreOffice | doc2docx, Spire.Doc |
+| `.doc` | `docx`, `pdf` | LibreOffice | - |
 | `.docx` | `pdf` | LibreOffice | - |
 | `.xls` | `xlsx` | LibreOffice | pandas + openpyxl |
 | `.xlsm` | `xlsx` | LibreOffice | pandas + openpyxl |
@@ -177,10 +177,6 @@ python -c "from convert import convert_any; print(convert_any('sample.doc'))"
 - `beautifulsoup4>=4.9.0` - HTML parsing
 - `lxml>=4.6.0` - XML processing
 - `python-docx>=0.8.11` - DOCX manipulation
-
-### Optional Dependencies (Python 3.9+ only)
-- `doc2docx>=0.2.0` - DOC to DOCX fallback
-- `spire.doc>=12.0.0` - Commercial DOC conversion library
 
 ### System Dependencies
 - **LibreOffice** - Primary conversion engine
