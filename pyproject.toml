@@ -1,0 +1,55 @@
+[project]
+name = "file-converter"
+version = "1.0.0"
+description = "Comprehensive file conversion system with LibreOffice and fallback libraries"
+authors = [
+    {name = "File Converter Team", email = "team@fileconverter.com"}
+]
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.8,<3.12"
+dependencies = [
+    "pandas>=1.3.0",
+    "openpyxl>=3.0.0",
+    "xlrd>=2.0.0",
+    "weasyprint==59.0",
+    "pydyf==0.8.0",
+    "beautifulsoup4>=4.9.0",
+    "lxml>=4.6.0",
+    "python-docx>=0.8.11",
+]
+
+[project.optional-dependencies]
+fallbacks = [
+    "doc2docx>=0.2.0; python_version>='3.9'",
+    "spire.doc>=12.0.0; python_version>='3.9'",
+]
+hwp = [
+    "pyhwp<=0.1b15"
+]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-cov>=2.10.0",
+    "black>=21.0.0",
+    "flake8>=3.8.0",
+    "mypy>=0.800",
+]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["convert", "config", "MhtmlExtractor"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[project.scripts]
+file-converter = "convert:main"

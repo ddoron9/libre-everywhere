@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  file-converter:
+    build: .
+    image: file-converter:latest
+    volumes:
+      - ${INPUT_DIR:-./test/data}:/data
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["/data"]
+    
+  # 병렬 처리를 위한 여러 인스턴스
+  file-converter-batch:
+    build: .
+    image: file-converter:latest
+    volumes:
+      - ${INPUT_DIR:-./test/data}:/data
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - PYTHONUNBUFFERED=1
+    deploy:
+      replicas: ${REPLICAS:-4}
+    command: ["/data"]
+
+networks:
+  default:
+    name: file-converter-network
