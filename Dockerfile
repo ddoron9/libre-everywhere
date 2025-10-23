@@ -12,7 +12,9 @@ pyhwp (GPLv3) - source code available at https://github.com/mete0r/pyhwp"
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_CACHE_DIR=/tmp/uv-cache \
-    DISPLAY=:99
+    DISPLAY=:99 \
+    API_KEY=your-secret-api-key-change-this \
+    MAX_FILE_SIZE=104857600
 
 # Install system dependencies for WeasyPrint, LibreOffice, and AbiWord
 RUN apt-get update && apt-get install -y \

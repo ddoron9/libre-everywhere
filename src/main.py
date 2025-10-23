@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from fastapi.responses import JSONResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 import os
@@ -9,12 +10,32 @@ import mimetypes
 from pathlib import Path
 import uvicorn
 from src.convert import convert_path, convert_any
+from src.auth import verify_api_key
+from src.validation import validate_file
 
 app = FastAPI(
     title="File Converter API",
     description="파일/폴더를 다양한 형식으로 변환하는 API",
     version="1.0.0"
 )
+
+# CORS 미들웨어 (필요한 경우만)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # 필요한 도메인만
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+# 보안 헤더 미들웨어
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
 class ConvertRequest(BaseModel):
     input_path: str
@@ -29,11 +50,11 @@ class ConvertResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    """API 상태 확인"""
+    """API 상태 확인 (인증 불필요)"""
     return {"message": "File Converter API is running", "status": "healthy"}
 
 @app.get("/supported-formats")
-async def get_supported_formats():
+async def get_supported_formats(api_key_valid: bool = Depends(verify_api_key)):
     """지원하는 파일 형식 목록 반환"""
     from src.config import CONVERSION_MAPPINGS
     return {
@@ -42,7 +63,7 @@ async def get_supported_formats():
     }
 
 @app.post("/convert", response_model=ConvertResponse)
-async def convert_files(request: ConvertRequest):
+async def convert_files(request: ConvertRequest, api_key_valid: bool = Depends(verify_api_key)):
     """
     파일 또는 폴더를 변환합니다.
     
@@ -116,7 +137,8 @@ async def convert_files(request: ConvertRequest):
 @app.post("/convert-upload")
 async def convert_uploaded_file(
     file: UploadFile = File(...),
-    convert_to: Optional[str] = Form(None)
+    convert_to: Optional[str] = Form(None),
+    api_key_valid: bool = Depends(verify_api_key)
 ):
     """
     업로드된 파일을 변환하고 변환된 파일을 직접 반환합니다.
@@ -128,6 +150,12 @@ async def convert_uploaded_file(
     temp_dir = tempfile.mkdtemp()
     
     try:
+        # 파일 내용 읽기
+        file_content = await file.read()
+        
+        # 파일 검증 (크기, 확장자, MIME 타입)
+        validate_file(file_content, file.filename or "unknown")
+        
         # 업로드된 파일 저장
         temp_input = Path(temp_dir) / file.filename
         with open(temp_input, "wb") as buffer:

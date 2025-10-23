@@ -38,18 +38,9 @@ docker build -t file-converter-api .
 docker run -d -p 8000:8000 \
   -v $(pwd)/uploads:/app/uploads \
   -v $(pwd)/converted_files:/app/converted_files \
-  -v $(pwd)/data:/app/data:ro \
+  -v $(pwd)/data:/app/data \
   --name file-converter-api \
   file-converter-api
-```
-
-### 방법 3: 전통적인 방법
-```bash
-# 의존성 설치
-pip install -e .
-
-# 서버 실행
-python3 main.py
 ```
 
 서버가 실행되면 `http://localhost:8000`에서 접근할 수 있습니다.
@@ -97,22 +88,6 @@ curl -X POST "http://localhost:8000/convert" \
 
 서버 실행 후 다음 URL에서 자동 생성된 API 문서를 확인할 수 있습니다:
 - Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
-## 주요 기능
-
-1. **자동 하위 탐색**: 폴더 입력시 하위 파일들을 자동으로 탐색하여 변환
-2. **유연한 출력 경로**: 출력 경로 미지정시 입력 경로와 동일한 위치에 저장
-3. **파일 업로드 지원**: 로컬 파일뿐만 아니라 업로드된 파일도 변환 가능
-4. **에러 처리**: 상세한 에러 메시지와 HTTP 상태 코드 제공
-5. **변환 통계**: 변환된 파일 목록과 개수 정보 제공
-
-## Docker 환경 설정
-
-### 볼륨 마운트
-- `./uploads:/app/uploads` - 업로드된 파일 저장
-- `./converted_files:/app/converted_files` - 변환된 파일 출력
-- `./data:/app/data:ro` - 로컬 파일 읽기 전용 마운트
 
 ## UV 프로젝트 관리
 
