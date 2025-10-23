@@ -7,8 +7,9 @@ from typing import Dict, List, Optional
 import pandas as pd
 from weasyprint import CSS, HTML
 
-from src.logging_config import get_logger
+from src.logging_config import get_logger, setup_logging
 
+setup_logging()
 logger = get_logger(__name__)
 
 CONVERSION_MAPPINGS = {
@@ -202,28 +203,35 @@ class HWPConverter(BaseConverter):
         hwp_abs = os.path.abspath(hwp_path)
         base_name = os.path.splitext(os.path.basename(hwp_abs))[0]
         output_dir = os.path.join(os.getcwd(), f"{base_name}_html")
-        html_output = os.path.join(output_dir, "index.html")
+        html_output = os.path.join(output_dir, "index.xhtml")
+        css_path = os.path.join(output_dir, "styles.css")
+        
+        self.logger.info(f"Output directory: {output_dir}")
+        self.logger.info(f"HTML output: {html_output}")
 
-        cmd = [self.hwp5html_path, hwp_abs, output_dir]
+        cmd = [self.hwp5html_path, hwp_abs, "--output", output_dir]
         execute_shell_command(cmd)
+
+        self.logger.info(f"[After convert] HTML output: {html_output}, exists: {os.path.exists(html_output)}")
 
         if not os.path.exists(html_output):
             raise RuntimeError(f"HWP to HTML conversion failed: {html_output}")
 
         self.logger.info(f"HWP to HTML successful: {hwp_abs} -> {html_output}")
-        return html_output
+        return output_dir
 
     def to_pdf(self, hwp_path: str, zoom: float = 0.9, remove_html: bool = True) -> str:
         """Convert HWP to PDF via HTML."""
         self.logger.info(f"Converting HWP to PDF: {hwp_path}")
 
         # Convert to HTML first
-        html_path = self.to_html(hwp_path, zoom)
-        output_dir = os.path.dirname(html_path)
+        output_dir = self.to_html(hwp_path, zoom)
 
         # Generate PDF
         base_name = os.path.splitext(os.path.basename(hwp_path))[0]
         pdf_output = os.path.join(os.getcwd(), f"{base_name}.pdf")
+        html_path = os.path.join(output_dir, "index.xhtml")
+        css_path = os.path.join(output_dir, "styles.css")
 
         try:
             css = CSS(
@@ -234,9 +242,12 @@ class HWPConverter(BaseConverter):
                 img, table, div { max-width: 100%; height: auto; }
             """
             )
+            css_list = [css]
+            if os.path.exists(css_path):
+                css_list.insert(0, CSS(filename=str(css_path)))
 
             HTML(filename=html_path, base_url=output_dir).write_pdf(
-                pdf_output, stylesheets=[css], zoom=zoom
+                pdf_output, stylesheets=css_list, zoom=zoom
             )
 
             self.logger.info(f"HWP to PDF successful: {hwp_path} -> {pdf_output}")
@@ -391,6 +402,7 @@ class FileConverterManager:
         """Convert file to specified format or default formats."""
         outputs = []
         ext = os.path.splitext(file_path)[1].lower()
+        self.logger.info(f"Converting {file_path} -> {convert_to}")
 
         if convert_to:
             target_ext = convert_to.lower().lstrip(".")
