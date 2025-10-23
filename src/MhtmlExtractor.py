@@ -8,21 +8,21 @@ Changes in this fork:
 - Keeps original robust extraction logic for reuse
 """
 
-import os
-import re
-import mimetypes
-import uuid
-import base64
-import quopri
-from urllib.parse import urlparse, unquote
-import hashlib
-import shutil
-import logging
 import argparse
-from typing import Optional, Dict, List, Tuple, Union
-from pathlib import Path
-from dataclasses import dataclass
+import base64
+import hashlib
+import logging
+import mimetypes
+import os
+import quopri
+import re
+import shutil
 import time
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+from urllib.parse import unquote, urlparse
 
 # Constants
 DEFAULT_BUFFER_SIZE = 8192
@@ -30,7 +30,12 @@ MIN_BUFFER_SIZE = 1024
 MAX_BUFFER_SIZE = 1024 * 1024  # 1MB
 SUPPORTED_ENCODINGS = {"base64", "quoted-printable", "7bit", "8bit", "binary"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".ico"}
-TEXT_CONTENT_TYPES = {"text/html", "text/css", "text/javascript", "application/javascript"}
+TEXT_CONTENT_TYPES = {
+    "text/html",
+    "text/css",
+    "text/javascript",
+    "application/javascript",
+}
 
 # Set up logging
 logging.basicConfig(
@@ -44,6 +49,7 @@ logging.basicConfig(
 @dataclass
 class ExtractionStats:
     """Statistics for the extraction process."""
+
     total_parts: int = 0
     html_files: int = 0
     css_files: int = 0
@@ -72,12 +78,12 @@ class MHTMLExtractor:
     """
 
     def __init__(
-        self, 
-        mhtml_path: Union[str, Path], 
-        output_dir: Union[str, Path], 
-        buffer_size: int = DEFAULT_BUFFER_SIZE, 
+        self,
+        mhtml_path: Union[str, Path],
+        output_dir: Union[str, Path],
+        buffer_size: int = DEFAULT_BUFFER_SIZE,
         clear_output_dir: bool = False,
-        dry_run: bool = False
+        dry_run: bool = False,
     ) -> None:
         """
         Initialize the MHTMLExtractor class with enhanced validation and performance optimizations.
@@ -88,7 +94,7 @@ class MHTMLExtractor:
             buffer_size: Buffer size for reading the MHTML file. Auto-optimized if needed.
             clear_output_dir: If True, clears the output directory before extraction.
             dry_run: If True, only analyze the MHTML file without extracting files.
-            
+
         Raises:
             FileNotFoundError: If the MHTML file doesn't exist.
             ValueError: If buffer_size is invalid.
@@ -97,17 +103,17 @@ class MHTMLExtractor:
         # Validate and convert paths
         self.mhtml_path = Path(mhtml_path).resolve()
         self.output_dir = Path(output_dir).resolve()
-        
+
         # Validate MHTML file exists
         if not self.mhtml_path.exists():
             raise FileNotFoundError(f"MHTML file not found: {self.mhtml_path}")
-        
+
         if not self.mhtml_path.is_file():
             raise ValueError(f"Path is not a file: {self.mhtml_path}")
-        
+
         # Validate and optimize buffer size
         self.buffer_size = self._optimize_buffer_size(buffer_size)
-        
+
         # Initialize attributes
         self.boundary: Optional[str] = None
         self.extracted_count: int = 0
@@ -115,7 +121,7 @@ class MHTMLExtractor:
         self.saved_html_files: List[str] = []
         self.stats = ExtractionStats()
         self.dry_run = dry_run
-        
+
         # Setup output directory
         if not dry_run:
             self._setup_output_directory(clear_output_dir)
@@ -123,43 +129,47 @@ class MHTMLExtractor:
     def _optimize_buffer_size(self, buffer_size: int) -> int:
         """
         Optimize buffer size based on file size and system constraints.
-        
+
         Args:
             buffer_size: Requested buffer size.
-            
+
         Returns:
             Optimized buffer size.
-            
+
         Raises:
             ValueError: If buffer size is invalid.
         """
         if buffer_size < MIN_BUFFER_SIZE:
             raise ValueError(f"Buffer size must be at least {MIN_BUFFER_SIZE} bytes")
-        
+
         if buffer_size > MAX_BUFFER_SIZE:
-            logging.warning(f"Buffer size {buffer_size} is very large, limiting to {MAX_BUFFER_SIZE}")
+            logging.warning(
+                f"Buffer size {buffer_size} is very large, limiting to {MAX_BUFFER_SIZE}"
+            )
             buffer_size = MAX_BUFFER_SIZE
-        
+
         # Auto-optimize based on file size
         try:
             file_size = self.mhtml_path.stat().st_size
             # Use larger buffer for larger files, but cap it
             optimal_size = min(max(file_size // 100, MIN_BUFFER_SIZE), MAX_BUFFER_SIZE)
             if optimal_size != buffer_size:
-                logging.info(f"Optimizing buffer size from {buffer_size} to {optimal_size} based on file size")
+                logging.info(
+                    f"Optimizing buffer size from {buffer_size} to {optimal_size} based on file size"
+                )
                 return optimal_size
         except OSError:
             logging.warning("Could not determine file size for buffer optimization")
-        
+
         return buffer_size
 
     def _setup_output_directory(self, clear: bool = False) -> None:
         """
         Setup the output directory with proper error handling.
-        
+
         Args:
             clear: Whether to clear the directory if it exists.
-            
+
         Raises:
             PermissionError: If unable to create or access the directory.
         """
@@ -170,15 +180,17 @@ class MHTMLExtractor:
             elif clear:
                 self._clear_directory(self.output_dir)
                 logging.info(f"Cleared output directory: {self.output_dir}")
-                
+
             # Test write permissions
             test_file = self.output_dir / ".mhtml_extractor_test"
             try:
                 test_file.touch()
                 test_file.unlink()
             except OSError as e:
-                raise PermissionError(f"No write permission in output directory: {self.output_dir}") from e
-                
+                raise PermissionError(
+                    f"No write permission in output directory: {self.output_dir}"
+                ) from e
+
         except OSError as e:
             raise PermissionError(f"Error setting up output directory: {e}") from e
 
@@ -186,7 +198,7 @@ class MHTMLExtractor:
     def _clear_directory(directory_path: Path) -> None:
         """
         Safely clear a directory's contents.
-        
+
         Args:
             directory_path: Path to the directory to clear.
         """
@@ -200,10 +212,12 @@ class MHTMLExtractor:
                 logging.warning(f"Could not remove {item}: {e}")
 
     @staticmethod
-    def ensure_directory_exists(directory_path: Union[str, Path], clear: bool = False) -> None:
+    def ensure_directory_exists(
+        directory_path: Union[str, Path], clear: bool = False
+    ) -> None:
         """
         Legacy method for backward compatibility.
-        
+
         Args:
             directory_path: Path to the directory.
             clear: Whether to clear the directory.
@@ -221,10 +235,10 @@ class MHTMLExtractor:
     def is_text_content(decoded_content: Union[str, bytes]) -> bool:
         """
         Determine if the given content is likely to be human-readable text.
-        
+
         Args:
             decoded_content: Content to analyze.
-            
+
         Returns:
             True if content appears to be text, False otherwise.
         """
@@ -266,9 +280,9 @@ class MHTMLExtractor:
             # Try different boundary patterns
             patterns = [
                 r'boundary="([^"]+)"',  # Quoted boundary
-                r'boundary=([^;\s]+)',  # Unquoted boundary
+                r"boundary=([^;\s]+)",  # Unquoted boundary
             ]
-            
+
             for pattern in patterns:
                 boundary_match = re.search(pattern, temp_buffer, re.IGNORECASE)
                 if boundary_match:
@@ -276,10 +290,10 @@ class MHTMLExtractor:
                     if boundary:
                         logging.debug(f"Found boundary: {boundary}")
                         return boundary
-                        
+
         except Exception as e:
             logging.error(f"Error reading boundary: {e}")
-        
+
         return None
 
     @staticmethod
@@ -293,26 +307,30 @@ class MHTMLExtractor:
 
         Returns:
             The decoded body content.
-            
+
         Raises:
             ValueError: If encoding is not supported.
         """
         if not encoding:
             return body
-            
+
         encoding = encoding.lower().strip()
-        
+
         try:
             if encoding == "base64":
                 # Remove whitespace and newlines before decoding
-                clean_body = re.sub(r'\s+', '', body)
+                clean_body = re.sub(r"\s+", "", body)
                 return base64.b64decode(clean_body)
             elif encoding == "quoted-printable":
-                return quopri.decodestring(body.encode()).decode('utf-8', errors='replace')
+                return quopri.decodestring(body.encode()).decode(
+                    "utf-8", errors="replace"
+                )
             elif encoding in {"7bit", "8bit", "binary"}:
                 return body
             else:
-                logging.warning(f"Unsupported encoding: {encoding}, treating as plain text")
+                logging.warning(
+                    f"Unsupported encoding: {encoding}, treating as plain text"
+                )
                 return body
         except Exception as e:
             logging.error(f"Error decoding body with encoding '{encoding}': {e}")
@@ -330,23 +348,27 @@ class MHTMLExtractor:
             The determined filename.
         """
         try:
-            content_location_match = re.search(r"Content-Location:\s*([^\r\n]+)", headers, re.IGNORECASE)
+            content_location_match = re.search(
+                r"Content-Location:\s*([^\r\n]+)", headers, re.IGNORECASE
+            )
             extension = mimetypes.guess_extension(content_type) or ""
 
             # If Content-Location is provided in the headers, use it to derive a filename
             if content_location_match:
                 location = content_location_match.group(1).strip()
                 parsed_url = urlparse(location)
-                base_name = os.path.basename(unquote(parsed_url.path)) or parsed_url.netloc
-                
+                base_name = (
+                    os.path.basename(unquote(parsed_url.path)) or parsed_url.netloc
+                )
+
                 # Clean the base name
-                base_name = re.sub(r'[<>:"/\\|?*]', '_', base_name)
+                base_name = re.sub(r'[<>:"/\\|?*]', "_", base_name)
                 if not base_name:
                     base_name = "unnamed"
-                
+
                 url_hash = hashlib.md5(location.encode()).hexdigest()
                 filename = f"{base_name}_{url_hash}{extension}"
-                
+
                 # Handle potential filename conflicts by appending a counter
                 original_filename = filename
                 counter = 1
@@ -357,14 +379,20 @@ class MHTMLExtractor:
             else:
                 # If Content-Location isn't provided, generate a UUID-based filename
                 filename = f"{uuid.uuid4()}{extension}"
-                
+
             return filename
-            
+
         except Exception as e:
             logging.error(f"Error extracting filename: {e}")
             return f"{uuid.uuid4()}.bin"
 
-    def _process_part(self, part: str, no_css: bool = False, no_images: bool = False, html_only: bool = False) -> None:
+    def _process_part(
+        self,
+        part: str,
+        no_css: bool = False,
+        no_images: bool = False,
+        html_only: bool = False,
+    ) -> None:
         """
         Process each MHTML part and extract its content with improved parsing and validation.
 
@@ -385,10 +413,18 @@ class MHTMLExtractor:
                 return
 
             # Extract various headers from the part with improved regex
-            content_type_match = re.search(r"Content-Type:\s*([^\r\n;]+)", headers, re.IGNORECASE)
-            content_transfer_encoding_match = re.search(r"Content-Transfer-Encoding:\s*([^\r\n]+)", headers, re.IGNORECASE)
-            content_location_match = re.search(r"Content-Location:\s*([^\r\n]+)", headers, re.IGNORECASE)
-            content_id_match = re.search(r"Content-ID:\s*<([^>]+)>", headers, re.IGNORECASE)
+            content_type_match = re.search(
+                r"Content-Type:\s*([^\r\n;]+)", headers, re.IGNORECASE
+            )
+            content_transfer_encoding_match = re.search(
+                r"Content-Transfer-Encoding:\s*([^\r\n]+)", headers, re.IGNORECASE
+            )
+            content_location_match = re.search(
+                r"Content-Location:\s*([^\r\n]+)", headers, re.IGNORECASE
+            )
+            content_id_match = re.search(
+                r"Content-ID:\s*<([^>]+)>", headers, re.IGNORECASE
+            )
 
             if not content_type_match:
                 logging.debug("No Content-Type found in part, skipping")
@@ -429,21 +465,23 @@ class MHTMLExtractor:
                 self._write_to_file(filename, content_type, decoded_body)
             else:
                 logging.info(f"[DRY RUN] Would extract: {filename} ({content_type})")
-                
+
         except Exception as e:
             logging.error(f"Error processing MHTML part: {e}")
             self.stats.skipped_files += 1
 
-    def _should_skip_content(self, content_type: str, no_css: bool, no_images: bool, html_only: bool) -> bool:
+    def _should_skip_content(
+        self, content_type: str, no_css: bool, no_images: bool, html_only: bool
+    ) -> bool:
         """
         Determine if content should be skipped based on filters.
-        
+
         Args:
             content_type: The MIME type of the content.
             no_css: Skip CSS files.
             no_images: Skip image files.
             html_only: Only process HTML files.
-            
+
         Returns:
             True if content should be skipped.
         """
@@ -458,20 +496,20 @@ class MHTMLExtractor:
     def _update_stats(self, content_type: str, decoded_body: Union[str, bytes]) -> None:
         """
         Update extraction statistics.
-        
+
         Args:
             content_type: The MIME type of the content.
             decoded_body: The decoded content.
         """
         self.stats.total_parts += 1
-        
+
         # Calculate size
         if isinstance(decoded_body, str):
-            size = len(decoded_body.encode('utf-8'))
+            size = len(decoded_body.encode("utf-8"))
         else:
             size = len(decoded_body)
         self.stats.total_size += size
-        
+
         # Categorize by type
         if "html" in content_type:
             self.stats.html_files += 1
@@ -482,7 +520,9 @@ class MHTMLExtractor:
         else:
             self.stats.other_files += 1
 
-    def _write_to_file(self, filename: str, content_type: str, decoded_body: Union[str, bytes]) -> None:
+    def _write_to_file(
+        self, filename: str, content_type: str, decoded_body: Union[str, bytes]
+    ) -> None:
         """
         Write the decoded content to a file with proper error handling.
 
@@ -490,7 +530,7 @@ class MHTMLExtractor:
             filename: The name of the file to be written.
             content_type: The content type of the data (e.g., "text/html").
             decoded_body: The decoded content to be written.
-            
+
         Raises:
             OSError: If file cannot be written.
         """
@@ -507,15 +547,22 @@ class MHTMLExtractor:
             file_path = self.output_dir / filename
             with open(file_path, "wb") as out_file:
                 out_file.write(decoded_body)
-                
+
             logging.debug(f"Wrote {len(decoded_body)} bytes to {filename}")
-            
+
         except OSError as e:
             logging.error(f"Error writing file {filename}: {e}")
             raise
 
-    def _update_html_links(self, filepath: Path, sorted_urls: List[str], hash_pattern: re.Pattern, 
-                          no_css: bool = False, no_images: bool = False, html_only: bool = False) -> None:
+    def _update_html_links(
+        self,
+        filepath: Path,
+        sorted_urls: List[str],
+        hash_pattern: re.Pattern,
+        no_css: bool = False,
+        no_images: bool = False,
+        html_only: bool = False,
+    ) -> None:
         """
         Update the links in HTML files with improved performance and error handling.
 
@@ -536,7 +583,7 @@ class MHTMLExtractor:
                 content = html_file.read()
 
             original_content = content
-            
+
             # For each original URL, replace it with the new filename in the content
             for original_url in sorted_urls:
                 new_filename = self.url_mapping[original_url]
@@ -546,7 +593,9 @@ class MHTMLExtractor:
                     continue
 
                 # Skip updating links for image files if no_images flag is set
-                if no_images and any(new_filename.endswith(ext) for ext in IMAGE_EXTENSIONS):
+                if no_images and any(
+                    new_filename.endswith(ext) for ext in IMAGE_EXTENSIONS
+                ):
                     continue
 
                 # Use re.sub for more efficient replacement
@@ -558,22 +607,24 @@ class MHTMLExtractor:
                 with open(filepath, "w", encoding="utf-8") as html_file:
                     html_file.write(content)
                 logging.debug(f"Updated links in {filepath.name}")
-            
+
         except Exception as e:
             logging.error(f"Error updating HTML links in {filepath}: {e}")
 
-    def extract(self, no_css: bool = False, no_images: bool = False, html_only: bool = False) -> ExtractionStats:
+    def extract(
+        self, no_css: bool = False, no_images: bool = False, html_only: bool = False
+    ) -> ExtractionStats:
         """
         Extract files from MHTML into separate files with enhanced performance and error handling.
-        
+
         Args:
             no_css: If True, CSS files will not be extracted.
             no_images: If True, image files will not be extracted.
             html_only: If True, only HTML files will be extracted.
-            
+
         Returns:
             ExtractionStats object with details about the extraction.
-            
+
         Raises:
             FileNotFoundError: If MHTML file doesn't exist.
             PermissionError: If unable to read MHTML file or write to output directory.
@@ -585,7 +636,9 @@ class MHTMLExtractor:
             if self.dry_run:
                 logging.info(f"[DRY RUN] Analyzing MHTML file: {self.mhtml_path}")
             else:
-                logging.info(f"Extracting from: {self.mhtml_path} to: {self.output_dir}")
+                logging.info(
+                    f"Extracting from: {self.mhtml_path} to: {self.output_dir}"
+                )
 
             with open(self.mhtml_path, "r", encoding="utf-8", errors="replace") as file:
                 # Continuously read from the MHTML file until no more content is left
@@ -616,7 +669,9 @@ class MHTMLExtractor:
                         # Process all complete parts
                         for part in parts[:-1]:
                             if self.extracted_count > 0:  # Skip the headers
-                                self._process_part(part.strip(), no_css, no_images, html_only)
+                                self._process_part(
+                                    part.strip(), no_css, no_images, html_only
+                                )
                             self.extracted_count += 1
 
                 # Process any remaining part
@@ -632,17 +687,19 @@ class MHTMLExtractor:
             # Finalize statistics
             self.stats.extraction_time = time.time() - start_time
             self._log_extraction_summary()
-            
+
             return self.stats
-            
+
         except Exception as e:
             logging.error(f"Error during extraction: {e}")
             raise
 
-    def _update_all_html_links(self, no_css: bool, no_images: bool, html_only: bool) -> None:
+    def _update_all_html_links(
+        self, no_css: bool, no_images: bool, html_only: bool
+    ) -> None:
         """
         Update links in all saved HTML files.
-        
+
         Args:
             no_css: Skip CSS link updates.
             no_images: Skip image link updates.
@@ -650,25 +707,27 @@ class MHTMLExtractor:
         """
         if not self.url_mapping:
             return
-            
+
         # Sort URLs by length (longest first) for proper replacement
         sorted_urls = sorted(self.url_mapping.keys(), key=len, reverse=True)
         hash_pattern = re.compile(r"_[a-f0-9]{32}\.")
 
         logging.info(f"Updating links in {len(self.saved_html_files)} HTML files...")
-        
+
         for filename in self.saved_html_files:
             filepath = self.output_dir / filename
             if filepath.exists():
-                self._update_html_links(filepath, sorted_urls, hash_pattern, no_css, no_images, html_only)
+                self._update_html_links(
+                    filepath, sorted_urls, hash_pattern, no_css, no_images, html_only
+                )
 
     def _log_extraction_summary(self) -> None:
         """Log a summary of the extraction process."""
         if self.dry_run:
-            logging.info(f"[DRY RUN] Analysis complete:")
+            logging.info("[DRY RUN] Analysis complete:")
         else:
-            logging.info(f"Extraction complete:")
-            
+            logging.info("Extraction complete:")
+
         logging.info(f"  Total parts processed: {self.stats.total_parts}")
         logging.info(f"  HTML files: {self.stats.html_files}")
         logging.info(f"  CSS files: {self.stats.css_files}")
@@ -677,7 +736,7 @@ class MHTMLExtractor:
         logging.info(f"  Skipped files: {self.stats.skipped_files}")
         logging.info(f"  Total size: {self.stats.total_size:,} bytes")
         logging.info(f"  Extraction time: {self.stats.extraction_time:.2f} seconds")
-        
+
         if not self.dry_run:
             logging.info(f"  Output directory: {self.output_dir}")
 
@@ -685,23 +744,24 @@ class MHTMLExtractor:
 def extract_single_html(mht_path: str) -> str:
     """
     Extract MHTML to a single HTML file with inlined assets (base64 images/CSS).
-    
+
     Args:
         mht_path: Path to the MHTML file
-        
+
     Returns:
         Path to the generated HTML file
     """
     mht_abs = Path(mht_path).resolve()
     base_name = mht_abs.stem
     html_out = mht_abs.parent / f"{base_name}.html"
-    
+
     # Use a temporary directory for extraction
     import tempfile
+
     with tempfile.TemporaryDirectory() as temp_dir:
         extractor = MHTMLExtractor(mht_abs, temp_dir, dry_run=False)
         stats = extractor.extract()
-        
+
         # Find the main HTML file
         main_html = None
         for html_file in extractor.saved_html_files:
@@ -709,58 +769,58 @@ def extract_single_html(mht_path: str) -> str:
             if html_path.exists():
                 main_html = html_path
                 break
-        
+
         if not main_html:
             raise RuntimeError("No HTML content found in MHTML file")
-        
+
         # Read the HTML content
-        with open(main_html, 'r', encoding='utf-8', errors='replace') as f:
+        with open(main_html, "r", encoding="utf-8", errors="replace") as f:
             html_content = f.read()
-        
+
         # Inline all assets as base64 data URIs
         for original_url, filename in extractor.url_mapping.items():
             asset_path = Path(temp_dir) / filename
             if asset_path.exists():
                 try:
-                    with open(asset_path, 'rb') as f:
+                    with open(asset_path, "rb") as f:
                         asset_data = f.read()
-                    
+
                     # Determine MIME type
                     mime_type, _ = mimetypes.guess_type(str(asset_path))
                     if not mime_type:
-                        if filename.lower().endswith(('.css',)):
-                            mime_type = 'text/css'
-                        elif filename.lower().endswith(('.js',)):
-                            mime_type = 'application/javascript'
+                        if filename.lower().endswith((".css",)):
+                            mime_type = "text/css"
+                        elif filename.lower().endswith((".js",)):
+                            mime_type = "application/javascript"
                         else:
-                            mime_type = 'application/octet-stream'
-                    
+                            mime_type = "application/octet-stream"
+
                     # Create data URI
-                    if mime_type.startswith('text/'):
+                    if mime_type.startswith("text/"):
                         # For text files, try to decode as UTF-8
                         try:
-                            text_content = asset_data.decode('utf-8')
+                            text_content = asset_data.decode("utf-8")
                             data_uri = f"data:{mime_type};charset=utf-8,{text_content}"
                         except UnicodeDecodeError:
                             # Fall back to base64 for binary text
-                            b64_data = base64.b64encode(asset_data).decode('ascii')
+                            b64_data = base64.b64encode(asset_data).decode("ascii")
                             data_uri = f"data:{mime_type};base64,{b64_data}"
                     else:
                         # Binary files use base64
-                        b64_data = base64.b64encode(asset_data).decode('ascii')
+                        b64_data = base64.b64encode(asset_data).decode("ascii")
                         data_uri = f"data:{mime_type};base64,{b64_data}"
-                    
+
                     # Replace references in HTML
                     html_content = html_content.replace(original_url, data_uri)
                     html_content = html_content.replace(filename, data_uri)
-                    
+
                 except Exception as e:
                     logging.warning(f"Failed to inline asset {filename}: {e}")
-        
+
         # Write the final HTML file
-        with open(html_out, 'w', encoding='utf-8') as f:
+        with open(html_out, "w", encoding="utf-8") as f:
             f.write(html_content)
-    
+
     logging.info(f"✅ Converted {mht_abs} → {html_out}")
     return str(html_out)
 
@@ -776,19 +836,51 @@ Examples:
   %(prog)s document.mhtml --output_dir ./extracted
   %(prog)s document.mhtml --html-only --dry-run
   %(prog)s document.mhtml --no-css --no-images --buffer_size 16384
-        """
+        """,
     )
-    
+
     parser.add_argument("mhtml_path", type=str, help="Path to the MHTML document.")
-    parser.add_argument("--output_dir", type=str, default=".", help="Output directory for the extracted files. (default: current directory)")
-    parser.add_argument("--buffer_size", type=int, default=DEFAULT_BUFFER_SIZE, help=f"Buffer size for reading the MHTML file. (default: {DEFAULT_BUFFER_SIZE})")
-    parser.add_argument("--clear_output_dir", action="store_true", help="If set, clears the output directory before extraction.")
-    parser.add_argument("--no-css", action="store_true", help="If set, CSS files will not be extracted.")
-    parser.add_argument("--no-images", action="store_true", help="If set, image files will not be extracted.")
-    parser.add_argument("--html-only", action="store_true", help="If set, only HTML files will be extracted.")
-    parser.add_argument("--dry-run", action="store_true", help="If set, analyze the MHTML file without extracting files.")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging output.")
-    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress all output except errors.")
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=".",
+        help="Output directory for the extracted files. (default: current directory)",
+    )
+    parser.add_argument(
+        "--buffer_size",
+        type=int,
+        default=DEFAULT_BUFFER_SIZE,
+        help=f"Buffer size for reading the MHTML file. (default: {DEFAULT_BUFFER_SIZE})",
+    )
+    parser.add_argument(
+        "--clear_output_dir",
+        action="store_true",
+        help="If set, clears the output directory before extraction.",
+    )
+    parser.add_argument(
+        "--no-css", action="store_true", help="If set, CSS files will not be extracted."
+    )
+    parser.add_argument(
+        "--no-images",
+        action="store_true",
+        help="If set, image files will not be extracted.",
+    )
+    parser.add_argument(
+        "--html-only",
+        action="store_true",
+        help="If set, only HTML files will be extracted.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="If set, analyze the MHTML file without extracting files.",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose logging output."
+    )
+    parser.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress all output except errors."
+    )
 
     args = parser.parse_args()
 
@@ -810,14 +902,14 @@ Examples:
 
         # Perform extraction
         stats = extractor.extract(args.no_css, args.no_images, args.html_only)
-        
+
         # Exit with appropriate code
         if stats.total_parts == 0:
             logging.warning("No parts were found in the MHTML file")
             exit(1)
         else:
             exit(0)
-            
+
     except FileNotFoundError as e:
         logging.error(f"File not found: {e}")
         exit(1)
@@ -831,5 +923,6 @@ Examples:
         logging.error(f"Unexpected error: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         exit(1)

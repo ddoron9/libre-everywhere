@@ -139,33 +139,6 @@ docker exec file-converter-api-container uv pip list
 
 ## 🔧 유지보수
 
-### 컨테이너 관리
-```bash
-# 컨테이너 중지
-docker stop file-converter-api-container
-
-# 컨테이너 시작
-docker start file-converter-api-container
-
-# 컨테이너 재시작
-docker restart file-converter-api-container
-
-# 컨테이너 삭제
-docker rm -f file-converter-api-container
-```
-
-### 이미지 관리
-```bash
-# 이미지 목록 확인
-docker images
-
-# 사용하지 않는 이미지 정리
-docker image prune
-
-# 특정 이미지 삭제
-docker rmi file-converter-api:latest
-```
-
 ## 📊 성능 모니터링
 
 ### 리소스 사용량 확인

@@ -51,5 +51,13 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
 
+[dependency-groups]
+dev = [
+    "black>=24.8.0",
+    "isort>=5.13.2",
+    "ruff>=0.14.1",
+    "vulture>=2.14",
+]
+
 [project.scripts]
 file-converter = "src.convert:main"
