@@ -3,10 +3,10 @@ FROM python:3.11-slim
 
 # License and maintainer information
 LABEL maintainer="dykim34@crowdworks.kr"
-LABEL license="GPLv2, GPLv3"
+LABEL license="GPLv2, AGPLv3"
 LABEL notice="This Docker image includes GPL-licensed software: \
 AbiWord (GPLv2) - source code available at https://www.abisource.com/downloads/abiword/ \
-pyhwp (GPLv3) - source code available at https://github.com/mete0r/pyhwp"
+pyhwp (AGPLv3) - source code available at https://github.com/mete0r/pyhwp"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -52,7 +52,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY src/ ./src/
-COPY README.md OFFLINE_DEPLOYMENT.md ./
+COPY README.md ./
 
 # Create directories for file processing
 RUN mkdir -p /app/uploads /app/converted_files
