@@ -8,7 +8,7 @@ import shutil
 import mimetypes
 from pathlib import Path
 import uvicorn
-from convert import convert_path, convert_any
+from src.convert import convert_path, convert_any
 
 app = FastAPI(
     title="File Converter API",
@@ -35,7 +35,7 @@ async def root():
 @app.get("/supported-formats")
 async def get_supported_formats():
     """지원하는 파일 형식 목록 반환"""
-    from config import CONVERSION_MAPPINGS
+    from src.config import CONVERSION_MAPPINGS
     return {
         "supported_formats": CONVERSION_MAPPINGS,
         "description": "Key: 입력 형식, Value: 출력 형식 목록"
@@ -191,7 +191,7 @@ async def health_check():
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app", 
+        "src.main:app", 
         host="0.0.0.0", 
         port=8000, 
         reload=True,

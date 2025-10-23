@@ -1,9 +1,10 @@
 [project]
-name = "file-converter"
+name = "file-converter-api"
 version = "1.0.0"
-description = "Comprehensive file conversion system with LibreOffice and fallback libraries"
+description = "Comprehensive file conversion API with LibreOffice, AbiWord and fallback libraries"
 authors = [
-    {name = "File Converter Team", email = "team@fileconverter.com"}
+    {name = "Doyi Kim", email = "dykim34@crowdworks.kr"},
+    {name = "John Hong", email = "hongsusoo@crowdworks.kr"}
 ]
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.8,<3.12"
@@ -36,8 +37,11 @@ dev = [
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-py-modules = ["convert", "config", "MhtmlExtractor"]
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 [tool.black]
 line-length = 88
@@ -50,5 +54,4 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [project.scripts]
-file-converter = "convert:main"
-file-converter-api = "main:app"
+file-converter = "src.convert:main"

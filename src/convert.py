@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
-from config import get_output_extensions, get_fallback_methods
+from src.config import get_output_extensions, get_fallback_methods
 from weasyprint import HTML, CSS
 import pandas as pd
 import sys

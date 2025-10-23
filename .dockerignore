@@ -78,5 +78,11 @@ docs/
 requirements.txt
 requirements-dev.txt
 
+# Build artifacts
+__pycache__/
+*.egg-info/
+file-converter-env/
+.uv-cache/
+
 # UV cache
 .uv-cache/

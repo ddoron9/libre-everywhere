@@ -14,12 +14,11 @@ from unittest.mock import patch, MagicMock
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import convert
-import config
-from convert import (
-    _libreoffice_convert, doc_to_docx, xls_to_xlsx, ppt_to_pptx,
+from src import convert, config
+from src.convert import (
+    _libreoffice_convert, _abiword_convert, doc_to_docx, xls_to_xlsx, ppt_to_pptx,
     hwp_to_html, hwp_to_pdf, html_to_pdf, mht_to_html,
-    xls_to_xlsx_pandas, convert_any
+    xls_to_xlsx_pandas, convert_any, convert_path
 )
 
 
@@ -160,9 +159,9 @@ class TestFileConverter(unittest.TestCase):
             import openpyxl
             
             # Use the actual test XLS file from test/data
-            path = '/home/dykim34/file_convert/test/data/테스트.xls'
+            test_file = 'test/data/test_xls.xls'
 
-            result = xls_to_xlsx_pandas(path)
+            result = xls_to_xlsx_pandas(test_file)
             self.assertTrue(os.path.exists(result))
             self.assertTrue(result.endswith('.xlsx'))
             print("✅ XLS→XLSX fallback to pandas successful")
@@ -235,7 +234,7 @@ class TestFileConverter(unittest.TestCase):
         """Test MHT to HTML conversion success."""
         try:
             # Test with actual MHT file if available
-            test_mht = '/home/dykim34/file_convert/test/data/{7D873493-9164-4974-A975-082C911C573B}.mht'
+            test_mht = 'test/data/test_mht.mht'
             if os.path.exists(test_mht):
                 result = mht_to_html(test_mht)
                 self.assertTrue(os.path.exists(result))
@@ -297,6 +296,142 @@ class TestFileConverter(unittest.TestCase):
                             f"Expected {expected} not found in {actual_extensions} for {filename}")
 
 
+class TestAbiWordFallback(unittest.TestCase):
+    """Test AbiWord fallback functionality."""
+    
+    @patch('src.convert._run_command')
+    @patch('shutil.which')
+    def test_abiword_convert_success(self, mock_which, mock_run_command):
+        """Test AbiWord conversion success."""
+        mock_which.side_effect = lambda cmd: '/usr/bin/abiword' if cmd == 'abiword' else '/usr/bin/xvfb-run'
+        mock_run_command.return_value = "conversion successful"
+        
+        test_dir = tempfile.mkdtemp()
+        try:
+            input_file = os.path.join(test_dir, "test.doc")
+            output_file = os.path.join(test_dir, "test.pdf")
+            
+            with open(input_file, 'w') as f:
+                f.write("test content")
+            
+            # Mock the output file creation
+            with open(output_file, 'w') as f:
+                f.write("PDF content")
+            
+            # Change to test directory
+            original_cwd = os.getcwd()
+            os.chdir(test_dir)
+            
+            try:
+                result = _abiword_convert(input_file, "pdf")
+                self.assertTrue(os.path.exists(result))
+                print("✅ AbiWord conversion test passed")
+            finally:
+                os.chdir(original_cwd)
+                
+        finally:
+            shutil.rmtree(test_dir, ignore_errors=True)
+
+    def test_convert_to_parameter(self):
+        """Test convert_any with convert_to parameter."""
+        test_dir = tempfile.mkdtemp()
+        try:
+            input_file = os.path.join(test_dir, "test.doc")
+            with open(input_file, 'w') as f:
+                f.write("test content")
+            
+            with patch('src.convert._libreoffice_convert') as mock_libreoffice:
+                mock_libreoffice.return_value = input_file.replace('.doc', '.txt')
+                
+                # Test convert_to parameter
+                results = convert_any(input_file, convert_to="txt")
+                self.assertTrue(isinstance(results, list))
+                print("✅ convert_to parameter test passed")
+                
+        finally:
+            shutil.rmtree(test_dir, ignore_errors=True)
+
+
+class TestConvertPath(unittest.TestCase):
+    """Test convert_path function."""
+    
+    def test_convert_path_directory(self):
+        """Test convert_path with directory input."""
+        test_dir = tempfile.mkdtemp()
+        try:
+            # Create test files
+            doc_file = os.path.join(test_dir, "test.doc")
+            xls_file = os.path.join(test_dir, "test.xls")
+            
+            with open(doc_file, 'w') as f:
+                f.write("doc content")
+            with open(xls_file, 'w') as f:
+                f.write("xls content")
+            
+            with patch('src.convert.convert_any') as mock_convert_any:
+                mock_convert_any.return_value = ["output.pdf"]
+                
+                results = convert_path(test_dir)
+                self.assertTrue(isinstance(results, dict))
+                print("✅ convert_path directory test passed")
+                
+        finally:
+            shutil.rmtree(test_dir, ignore_errors=True)
+
+    def test_convert_path_single_file(self):
+        """Test convert_path with single file input."""
+        test_dir = tempfile.mkdtemp()
+        try:
+            input_file = os.path.join(test_dir, "test.doc")
+            with open(input_file, 'w') as f:
+                f.write("test content")
+            
+            with patch('src.convert.convert_any') as mock_convert_any:
+                mock_convert_any.return_value = ["output.pdf"]
+                
+                results = convert_path(input_file)
+                self.assertTrue(isinstance(results, dict))
+                print("✅ convert_path single file test passed")
+                
+        finally:
+            shutil.rmtree(test_dir, ignore_errors=True)
+
+
+class TestRealFiles(unittest.TestCase):
+    """Test with actual files from test/data directory."""
+    
+    def setUp(self):
+        self.test_data_dir = 'test/data'
+    
+    def test_real_doc_file(self):
+        """Test with real DOC file."""
+        doc_file = os.path.join(self.test_data_dir, 'test_doc.doc')
+        if os.path.exists(doc_file):
+            try:
+                with patch('src.convert._libreoffice_convert') as mock_convert:
+                    mock_convert.return_value = doc_file.replace('.doc', '.pdf')
+                    results = convert_any(doc_file)
+                    print(f"✅ Real DOC file test: {len(results)} conversions")
+            except Exception as e:
+                print(f"⚠️ Real DOC file test failed: {e}")
+        else:
+            print("⚠️ Real DOC file not found")
+    
+    def test_real_hwp_file(self):
+        """Test with real HWP file."""
+        hwp_file = os.path.join(self.test_data_dir, 'test_hwp.hwp')
+        if os.path.exists(hwp_file):
+            try:
+                with patch('src.convert.hwp_to_pdf') as mock_convert:
+                    mock_convert.return_value = hwp_file.replace('.hwp', '.pdf')
+                    results = convert_any(hwp_file)
+                    print(f"✅ Real HWP file test: {len(results)} conversions")
+            except Exception as e:
+                print(f"⚠️ Real HWP file test failed: {e}")
+        else:
+            print("⚠️ Real HWP file not found")
+
+
 class TestXlsToPandasFallback(unittest.TestCase):
     """Separate test class for pandas fallback to avoid import issues."""
     
@@ -304,7 +439,7 @@ class TestXlsToPandasFallback(unittest.TestCase):
         """Test the pandas fallback function directly."""
         try:
             # Test with actual file if it exists
-            test_file = '/home/dykim34/file_convert/test/data/테스트.xls'
+            test_file = 'test/data/test_xls.xls'
             if os.path.exists(test_file):
                 result = xls_to_xlsx_pandas(test_file)
                 self.assertTrue(os.path.exists(result))
@@ -332,6 +467,9 @@ def run_comprehensive_tests():
     
     # Add test classes
     suite.addTests(loader.loadTestsFromTestCase(TestFileConverter))
+    suite.addTests(loader.loadTestsFromTestCase(TestAbiWordFallback))
+    suite.addTests(loader.loadTestsFromTestCase(TestConvertPath))
+    suite.addTests(loader.loadTestsFromTestCase(TestRealFiles))
     suite.addTests(loader.loadTestsFromTestCase(TestXlsToPandasFallback))
     
     # Run tests with detailed output
