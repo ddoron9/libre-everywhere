@@ -19,16 +19,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS 미들웨어 (필요한 경우만)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # 필요한 도메인만
+    allow_origins=["http://localhost:3000", "https://localhost:3000"],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
-# 보안 헤더 미들웨어
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -74,39 +72,30 @@ async def convert_files(request: ConvertRequest, api_key_valid: bool = Depends(v
     try:
         input_path = Path(request.input_path).resolve()
         
-        # 입력 경로 존재 확인
         if not input_path.exists():
             raise HTTPException(
                 status_code=404, 
                 detail=f"입력 경로를 찾을 수 없습니다: {request.input_path}"
             )
         
-        # 출력 경로 설정 (미입력시 입력 경로와 동일)
         if request.output_path:
             output_path = Path(request.output_path).resolve()
-            # 출력 디렉토리가 없으면 생성
             if not output_path.exists():
                 output_path.mkdir(parents=True, exist_ok=True)
         else:
             output_path = input_path.parent if input_path.is_file() else input_path
 
-        # 현재 작업 디렉토리 저장
         original_cwd = os.getcwd()
         
         try:
-            # 출력 디렉토리로 작업 디렉토리 변경
             os.chdir(output_path)
             
-            # 변환 실행
             if input_path.is_file():
-                # 단일 파일 변환
                 outputs = convert_any(str(input_path), request.convert_to)
                 results = {str(input_path): outputs} if outputs else {}
             else:
-                # 폴더 변환 (기존 방식 유지)
                 results = convert_path(str(input_path))
             
-            # 결과 처리
             total_files = len(results)
             
             if total_files == 0:
@@ -146,29 +135,22 @@ async def convert_uploaded_file(
     - **file**: 변환할 파일 (업로드)
     - **convert_to**: 변환할 확장자 (선택사항)
     """
-    # 임시 디렉토리를 함수 스코프 밖에서 관리
     temp_dir = tempfile.mkdtemp()
     
     try:
-        # 파일 내용 읽기
         file_content = await file.read()
         
-        # 파일 검증 (크기, 확장자, MIME 타입)
         validate_file(file_content, file.filename or "unknown")
         
-        # 업로드된 파일 저장
         temp_input = Path(temp_dir) / file.filename
         with open(temp_input, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(file_content)
         
-        # 현재 작업 디렉토리 저장
         original_cwd = os.getcwd()
         
         try:
-            # 임시 디렉토리로 작업 디렉토리 변경
             os.chdir(temp_dir)
             
-            # 변환 실행
             outputs = convert_any(str(temp_input), convert_to)
             
             if not outputs:
@@ -177,7 +159,6 @@ async def convert_uploaded_file(
                     detail="지원하지 않는 파일 형식이거나 변환에 실패했습니다."
                 )
             
-            # 첫 번째 변환된 파일 반환
             converted_file_path = outputs[0]
             converted_file = Path(converted_file_path)
             
@@ -187,12 +168,10 @@ async def convert_uploaded_file(
                     detail="변환된 파일을 찾을 수 없습니다."
                 )
             
-            # MIME 타입 감지
             mime_type, _ = mimetypes.guess_type(str(converted_file))
             if not mime_type:
                 mime_type = 'application/octet-stream'
             
-            # 파일 반환 (임시 파일은 백그라운드에서 정리됨)
             return FileResponse(
                 path=str(converted_file),
                 filename=converted_file.name,
@@ -201,11 +180,9 @@ async def convert_uploaded_file(
             )
             
         finally:
-            # 원래 작업 디렉토리로 복원
             os.chdir(original_cwd)
             
     except Exception as e:
-        # 에러 발생시 임시 디렉토리 정리
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise HTTPException(
             status_code=500,

@@ -8,6 +8,18 @@ LABEL notice="This Docker image includes GPL-licensed software: \
 AbiWord (GPLv2) - source code available at https://www.abisource.com/downloads/abiword/ \
 pyhwp (AGPLv3) - source code available at https://github.com/mete0r/pyhwp"
 
+# Install locales non-interactively
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales \
+ && sed -i '/ko_KR.UTF-8/s/^# //g' /etc/locale.gen \
+ && locale-gen ko_KR.UTF-8
+
+ENV LANG=ko_KR.UTF-8
+ENV LC_ALL=ko_KR.UTF-8
+
+# Timezone to UTC
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

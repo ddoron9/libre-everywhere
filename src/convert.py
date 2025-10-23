@@ -268,7 +268,7 @@ def hwp_to_pdf(hwp_path: str, zoom: float = 0.9, remove_html: bool = True):
     print(f"✅ PDF 변환 완료: {output_pdf}")
     if remove_html:
         shutil.rmtree(output_dir)
-    return output_pdf
+    return str(output_pdf)
 
 
 # ---------------------------
