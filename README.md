@@ -1,300 +1,169 @@
-# 📄 File Converter System
+# File Converter API
 
-A comprehensive file conversion system with LibreOffice integration and multiple fallback mechanisms.
+파일/폴더를 다양한 형식으로 변환하는 FastAPI 서버입니다.
 
-## 🎯 Supported Conversions
+## 지원하는 변환 형식
 
-Based on the configuration system, the following conversions are supported:
+- `.doc` → `pdf`
+- `.xls`, `.xlsm` → `xlsx`
+- `.ppt` → `pptx`
+- `.hwp` → `pdf`
+- `.mht` → `html`
 
-| Input Format | Output Formats | Primary Method | Fallback Methods |
-|-------------|---------------|----------------|------------------|
-| `.doc` | `docx`, `pdf` | LibreOffice | doc2docx, Spire.Doc |
-| `.docx` | `pdf` | LibreOffice | - |
-| `.xls` | `xlsx` | LibreOffice | pandas + openpyxl |
-| `.xlsm` | `xlsx` | LibreOffice | pandas + openpyxl |
-| `.ppt` | `pptx` | LibreOffice | - |
-| `.hwp` | `html`, `pdf` | hwp5html + WeasyPrint | - |
-| `.mht` | `html` | MhtmlExtractor | email parser |
+## 설치 및 실행
 
-## 🔧 Configuration System
+### 방법 1: UV 사용 (권장)
 
-The conversion mappings are defined in `config.py`:
-
-```python
-from config import get_output_extensions, get_fallback_methods
-
-# Get output extensions for an input format
-outputs = get_output_extensions('.doc')  # Returns ['docx', 'pdf']
-
-# Get fallback methods for a conversion
-fallbacks = get_fallback_methods('doc_to_docx')  # Returns ['libreoffice', 'doc2docx', 'spire_doc']
-```
-
-### Default Behavior
-- **Known extensions**: Convert according to configuration
-- **Unknown extensions**: Default to PDF conversion
-- **Multiple outputs**: All configured outputs are generated
-
-## 🚀 Usage
-
-### Basic Usage
-
+#### 1. UV 설치
 ```bash
-# Convert a single file
-python convert.py input_file.doc
-
-# Convert all files in a directory
-python convert.py /path/to/directory
-
-# Convert current directory
-python convert.py .
-```
-
-### Using Virtual Environment
-
-```bash
-# Activate the uv virtual environment
-source file-converter-env/bin/activate
-
-# Run conversions
-python convert.py input_file.doc
-```
-
-### Docker Usage
-
-```bash
-# Build the Docker image
-sudo docker build -t file-converter:latest .
-
-# Convert all files in a directory
-sudo docker run --rm \
-  -v /path/to/files:/data file-converter:latest
-
-# Convert a specific file
-sudo docker run --rm -u $(id -u):$(id -g) \
-  -v /path/to/files:/data file-converter:latest /data/filename.doc
-
-### 대량 파일 처리 (Batch Processing)
-
-#### 1. 디렉토리 전체 처리
-```bash
-# 디렉토리 내 모든 파일 변환
-sudo docker run --rm -u $(id -u):$(id -g) \
-  -v /path/to/files:/data file-converter:latest /data
-
-# 특정 디렉토리만 처리
-sudo docker run --rm -u $(id -u):$(id -g) \
-  -v /home/user/documents:/data file-converter:latest /data
-```
-
-#### 2. 병렬 처리 (여러 컨테이너 동시 실행)
-```bash
-# 여러 파일을 병렬로 처리
-for file in /path/to/files/*.{doc,hwp,xls,ppt,mht}; do
-  sudo docker run --rm -d -u $(id -u):$(id -g) \
-    -v "$(dirname "$file"):/data" \
-    file-converter:latest "/data/$(basename "$file")" &
-done
-wait  # 모든 작업 완료까지 대기
-```
-
-#### 3. Docker Compose를 사용한 스케일링
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  file-converter:
-    image: file-converter:latest
-    volumes:
-      - /path/to/input:/data
-    user: "${UID}:${GID}"
-    deploy:
-      replicas: 4  # 4개 인스턴스 동시 실행
-```
-
-```bash
-# 실행
-UID=$(id -u) GID=$(id -g) docker-compose up --scale file-converter=4
-```
-
-#### 4. 대용량 처리를 위한 최적화된 명령
-```bash
-# CPU 코어 수만큼 병렬 처리
-CORES=$(nproc)
-find /path/to/files -type f \( -name "*.doc" -o -name "*.hwp" -o -name "*.xls" -o -name "*.ppt" -o -name "*.mht" \) | \
-xargs -n 1 -P $CORES -I {} sudo docker run --rm -u $(id -u):$(id -g) \
-  -v "$(dirname "{}"):/data" file-converter:latest "/data/$(basename "{}")"
-```
-
-#### 5. 진행 상황 모니터링
-```bash
-# 진행 상황을 보면서 처리
-total_files=$(find /path/to/files -type f \( -name "*.doc" -o -name "*.hwp" -o -name "*.xls" -o -name "*.ppt" -o -name "*.mht" \) | wc -l)
-echo "총 $total_files 개 파일 처리 시작..."
-
-find /path/to/files -type f \( -name "*.doc" -o -name "*.hwp" -o -name "*.xls" -o -name "*.ppt" -o -name "*.mht" \) | \
-while read file; do
-  echo "처리 중: $(basename "$file")"
-  sudo docker run --rm -u $(id -u):$(id -g) \
-    -v "$(dirname "$file"):/data" \
-    file-converter:latest "/data/$(basename "$file")"
-done
-```
-```
-
-## 🧪 Testing
-
-### Run Comprehensive Tests
-
-```bash
-# Activate virtual environment
-source file-converter-env/bin/activate
-
-# Run all tests
-python test_converter.py
-```
-
-### Test Individual Components
-
-```bash
-# Test LibreOffice availability
-python -c "from convert import _run_command; print(_run_command(['soffice', '--version']))"
-
-# Test config system
-python -c "from config import get_output_extensions; print(get_output_extensions('.doc'))"
-
-# Test actual conversions
-python -c "from convert import convert_any; print(convert_any('sample.doc'))"
-```
-
-## 📦 Dependencies
-
-### Core Dependencies (installed in virtual environment)
-- `pandas>=1.3.0` - Excel file processing fallback
-- `openpyxl>=3.0.0` - Excel file writing
-- `xlrd>=2.0.0` - Excel file reading
-- `weasyprint>=52.0` - HTML to PDF conversion
-- `beautifulsoup4>=4.9.0` - HTML parsing
-- `lxml>=4.6.0` - XML processing
-- `python-docx>=0.8.11` - DOCX manipulation
-
-### Optional Dependencies (Python 3.9+ only)
-- `doc2docx>=0.2.0` - DOC to DOCX fallback
-- `spire.doc>=12.0.0` - Commercial DOC conversion library
-
-### System Dependencies
-- **LibreOffice** - Primary conversion engine
-- **Java Runtime** - Required for LibreOffice PPT conversions
-- **pyhwp/hwp5html** - HWP file processing (Docker only)
-
-## 🔄 Fallback Mechanisms
-
-### DOC to DOCX Conversion
-1. **LibreOffice** (Primary) - System LibreOffice installation
-2. **doc2docx** (Fallback 1) - Python library for DOC conversion
-3. **Spire.Doc** (Fallback 2) - Commercial library with advanced features
-
-### XLS to XLSX Conversion
-1. **LibreOffice** (Primary) - System LibreOffice installation
-2. **pandas + openpyxl** (Fallback) - Pure Python solution
-
-### MHT to HTML Conversion
-1. **MhtmlExtractor** (Primary) - Custom MHTML parser with base64 inlining
-2. **email parser** (Fallback) - Simple email-based MHTML parsing
-
-## 🐳 Virtual Environment Setup
-
-The project uses `uv` for fast Python package management:
-
-```bash
-# Install uv (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create virtual environment
-uv venv file-converter-env
-
-# Activate environment
-source file-converter-env/bin/activate
-
-# Install dependencies
-uv pip install pandas openpyxl xlrd weasyprint beautifulsoup4 lxml python-docx
 ```
 
-## 📊 Test Results
-
-Recent test results show:
-- ✅ **LibreOffice Integration**: Working
-- ✅ **Config System**: All tests passed
-- ✅ **MHT → HTML**: Successful with base64 image inlining
-- ✅ **DOC → DOCX/PDF**: LibreOffice working
-- ✅ **XLS → XLSX**: Both LibreOffice and pandas fallback working
-- ⚠️ **PPT → PPTX**: Requires Java Runtime for LibreOffice
-- ⚠️ **HWP → HTML**: Requires hwp5html (available in Docker)
-
-## 🔍 Troubleshooting
-
-### LibreOffice Issues
+#### 2. 의존성 설치 및 실행
 ```bash
-# Check LibreOffice installation
-soffice --version
+# 의존성 설치
+uv sync
 
-# Install LibreOffice (Ubuntu/Debian)
-sudo apt-get install libreoffice
-
-# Install Java for PPT conversion
-sudo apt-get install default-jre libreoffice-java-common
+# 서버 실행
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Python Dependencies
+### 방법 2: Docker 사용
+
 ```bash
-# Check if pandas is available
-python -c "import pandas; print('pandas OK')"
+# 이미지 빌드
+docker build -t file-converter-api .
 
-# Check if WeasyPrint is available  
-python -c "import weasyprint; print('WeasyPrint OK')"
+# 컨테이너 실행
+docker run -d -p 8000:8000 \
+  -v $(pwd)/uploads:/app/uploads \
+  -v $(pwd)/converted_files:/app/converted_files \
+  -v $(pwd)/data:/app/data:ro \
+  --name file-converter-api \
+  file-converter-api
 ```
 
-### HWP Conversion (Docker Required)
+### 방법 3: 전통적인 방법
 ```bash
-# HWP conversion only works in Docker environment
-docker run --rm -v $(pwd):/data file-converter:latest /data/file.hwp
+# 의존성 설치
+pip install -e .
+
+# 서버 실행
+python3 main.py
 ```
 
-## 📁 File Structure
+서버가 실행되면 `http://localhost:8000`에서 접근할 수 있습니다.
 
+## API 엔드포인트
+
+### 1. 기본 정보
+- `GET /` - API 상태 확인
+- `GET /health` - 헬스 체크
+- `GET /supported-formats` - 지원하는 파일 형식 목록
+
+### 2. 파일 변환
+- `POST /convert` - 로컬 파일/폴더 변환
+- `POST /convert-upload` - 업로드된 파일 변환
+
+## 사용 예시
+
+### 로컬 파일 변환
+```bash
+curl -X POST "http://localhost:8000/convert" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_path": "/path/to/file.doc",
+    "output_path": "/path/to/output"
+  }'
 ```
-file_convert/
-├── convert.py              # Main conversion script
-├── config.py               # Configuration system
-├── MhtmlExtractor.py       # MHT to HTML converter
-├── test_converter.py       # Comprehensive test suite
-├── Dockerfile              # Docker environment
-├── pyproject.toml          # Python project configuration
-├── README.md               # This file
-└── file-converter-env/     # uv virtual environment
+
+### 파일 업로드 및 변환
+```bash
+curl -X POST "http://localhost:8000/convert-upload" \
+  -F "file=@document.doc" \
+  -F "output_path=/path/to/output"
 ```
 
-## 🎉 Features
+### 폴더 변환
+```bash
+curl -X POST "http://localhost:8000/convert" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_path": "/path/to/folder"
+  }'
+```
 
-- **Config-driven conversions**: Easy to modify conversion mappings
-- **Multiple fallback mechanisms**: Ensures high success rate
-- **Base64 image inlining**: MHT and HWP conversions include embedded images
-- **Comprehensive testing**: Full test suite with mock and real file tests
-- **Docker support**: Complete runtime environment
-- **Virtual environment**: Isolated Python dependencies with uv
-- **Error handling**: Detailed error messages and graceful degradation
-- **Batch processing**: Directory-wide conversions
-- **Progress reporting**: Clear success/failure indicators
+## API 문서
 
-## 📝 License
+서버 실행 후 다음 URL에서 자동 생성된 API 문서를 확인할 수 있습니다:
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-This project includes code from:
-- [MHTMLExtractor](https://github.com/AScriver/MHTMLExtractor) - MHTML parsing functionality
+## 주요 기능
 
-## 🤝 Contributing
+1. **자동 하위 탐색**: 폴더 입력시 하위 파일들을 자동으로 탐색하여 변환
+2. **유연한 출력 경로**: 출력 경로 미지정시 입력 경로와 동일한 위치에 저장
+3. **파일 업로드 지원**: 로컬 파일뿐만 아니라 업로드된 파일도 변환 가능
+4. **에러 처리**: 상세한 에러 메시지와 HTTP 상태 코드 제공
+5. **변환 통계**: 변환된 파일 목록과 개수 정보 제공
 
-1. Modify `config.py` to add new conversion mappings
-2. Implement conversion functions in `convert.py`
-3. Add tests in `test_converter.py`
-4. Update Docker dependencies in `Dockerfile`
-5. Test with `python test_converter.py`
+## Docker 환경 설정
+
+### 볼륨 마운트
+- `./uploads:/app/uploads` - 업로드된 파일 저장
+- `./converted_files:/app/converted_files` - 변환된 파일 출력
+- `./data:/app/data:ro` - 로컬 파일 읽기 전용 마운트
+
+## UV 프로젝트 관리
+
+```bash
+# 새로운 의존성 추가
+uv add package-name
+
+# 개발 의존성 추가
+uv add --dev package-name
+
+# 의존성 업데이트
+uv sync --upgrade
+
+# 가상환경 활성화
+source .venv/bin/activate
+
+# 스크립트 실행
+uv run python main.py
+```
+
+## 🔒 폐쇄망 환경 배포
+
+### 빌드 및 저장 (인터넷 환경)
+```bash
+# 자동 빌드 및 저장
+./build-and-export.sh
+
+# 수동 빌드
+docker build -t file-converter-api:latest .
+docker save file-converter-api:latest -o file-converter-api.tar
+```
+
+### 로드 및 실행 (폐쇄망 환경)
+```bash
+# 자동 로드 및 실행
+./load-and-run.sh
+
+# 수동 실행
+docker load -i file-converter-api.tar
+docker run -d -p 8000:8000 \
+  -v $(pwd)/uploads:/app/uploads \
+  -v $(pwd)/converted_files:/app/converted_files \
+  -v $(pwd)/data:/app/data:ro \
+  --name file-converter-api \
+  file-converter-api:latest
+```
+
+### 주요 특징
+- ✅ **완전 오프라인**: 컨테이너 실행 시 인터넷 불필요
+- ✅ **무결성 검증**: SHA256 체크섬으로 파일 검증
+- ✅ **자동화 스크립트**: 빌드/배포 과정 자동화
+- ✅ **헬스 체크**: Python 내장 라이브러리로 상태 확인
+
+자세한 내용은 [OFFLINE_DEPLOYMENT.md](OFFLINE_DEPLOYMENT.md)를 참조하세요.

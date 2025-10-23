@@ -7,6 +7,8 @@ Configuration for file conversion mappings and settings.
 CONVERSION_MAPPINGS = {
     ".doc": ["pdf"],
     # ".docx": ["pdf"],
+    ".rtf": ["pdf"],
+    ".odt": ["pdf"],
     ".xls": ["xlsx"],
     ".xlsm": ["xlsx"],
     ".ppt": ["pptx"],
@@ -16,9 +18,11 @@ CONVERSION_MAPPINGS = {
 
 # Fallback order for each conversion type
 FALLBACK_ORDER = {
-    "doc_to_docx": ["libreoffice", "doc2docx"],
-    "doc_to_pdf": ["libreoffice"],
-    "docx_to_pdf": ["libreoffice"],
+    "doc_to_docx": ["libreoffice", "abiword"],
+    "doc_to_pdf": ["libreoffice", "abiword"],
+    "docx_to_pdf": ["libreoffice", "abiword"],
+    "rtf_to_pdf": ["libreoffice", "abiword"],
+    "odt_to_pdf": ["libreoffice", "abiword"],
     "xls_to_xlsx": ["libreoffice", "pandas"],
     "xlsm_to_xlsx": ["libreoffice", "pandas"],
     "ppt_to_pptx": ["libreoffice"],

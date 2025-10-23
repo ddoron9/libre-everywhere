@@ -63,19 +63,83 @@ def _libreoffice_convert(input_path: str, target_ext: str) -> str:
     return expected
 
 
+def _abiword_convert(input_path: str, target_ext: str) -> str:
+    """
+    Convert documents using AbiWord as fallback when LibreOffice fails.
+    AbiWord always creates output in the same directory as input file.
+    """
+    input_abs = os.path.abspath(input_path)
+    input_dir = os.path.dirname(input_abs)
+    base = os.path.splitext(os.path.basename(input_abs))[0]
+    
+    # AbiWord creates output in input file's directory
+    abiword_output = os.path.join(input_dir, f"{base}.{target_ext}")
+    
+    # Final output path (current working directory)
+    current_dir = os.getcwd()
+    final_output = os.path.join(current_dir, f"{base}.{target_ext}")
+    
+    # Check if AbiWord is available
+    abiword = shutil.which("abiword")
+    if not abiword:
+        raise RuntimeError("AbiWord not found in PATH. Please install AbiWord.")
+    
+    # Check if we're in a headless environment (Docker)
+    display = os.environ.get('DISPLAY')
+    if not display or display == ':99':
+        # Use xvfb-run for headless operation
+        xvfb_run = shutil.which("xvfb-run")
+        if not xvfb_run:
+            raise RuntimeError("xvfb-run not found. Required for headless AbiWord operation.")
+        
+        cmd = [
+            xvfb_run, "-a",
+            abiword,
+            f"--to={target_ext}",
+            input_abs,
+            "--plugin=AbiCommand"
+        ]
+    else:
+        # Direct AbiWord execution
+        cmd = [
+            abiword,
+            f"--to={target_ext}",
+            input_abs,
+            "--plugin=AbiCommand"
+        ]
+    
+    try:
+        log = _run_command(cmd)
+        
+        # Check if AbiWord created the output file
+        if os.path.exists(abiword_output):
+            # Move file to current working directory if different
+            if abiword_output != final_output:
+                if os.path.exists(final_output):
+                    os.remove(final_output)  # Remove existing file
+                shutil.move(abiword_output, final_output)
+                print(f"✅ Converted {input_abs} → {final_output} (via AbiWord)")
+            else:
+                print(f"✅ Converted {input_abs} → {abiword_output} (via AbiWord)")
+                final_output = abiword_output
+            
+            return final_output
+        else:
+            raise RuntimeError(f"AbiWord conversion did not produce expected output: {abiword_output}")
+            
+    except Exception as e:
+        raise RuntimeError(f"AbiWord conversion failed: {e}")
+
+
 def doc_to_docx(doc_path: str) -> str:
     try:
         return _libreoffice_convert(doc_path, "docx")
     except RuntimeError:
-        # Fallback 1: Try doc2docx
+        # Fallback 1: Try AbiWord
         try:
-            from doc2docx import convert
-            docx_path = os.path.splitext(doc_path)[0] + ".docx"
-            convert(doc_path, docx_path)
-            print(f"✅ Converted {doc_path} → {docx_path} (via doc2docx)")
-            return docx_path
+            return _abiword_convert(doc_path, "docx")
         except Exception as e:
-            raise RuntimeError(e)
+            raise RuntimeError(f"All conversion methods failed: {e}")
 
 def xls_to_xlsx(xls_path: str) -> str:
     try:
@@ -274,43 +338,95 @@ def mht_to_html(mht_path: str) -> str:
 # ---------------------------
 # Main Dispatcher
 # ---------------------------
-def convert_any(file_path):
+def convert_any(file_path, convert_to=None):
     outputs: List[str] = []
     ext = os.path.splitext(file_path)[1].lower()
     
-    # Get output extensions from config
-    output_exts = get_output_extensions(ext)
+    # convert_to가 지정된 경우 해당 확장자로만 변환 시도
+    if convert_to:
+        target_ext = convert_to.lower().lstrip('.')  # 점 제거
+        output_exts = [target_ext]
+        print(f"🎯 Attempting to convert {ext} → {target_ext}")
+    else:
+        # 기존 방식: config에서 출력 확장자 가져오기
+        output_exts = get_output_extensions(ext)
+        if not output_exts:
+            print(f"⚠️ Unsupported file format: {ext}")
+            return outputs
     
-    if not output_exts:
-        print(f"⚠️ Unsupported file format: {ext}")
-        return outputs
-    
-    # Handle each conversion based on config
+    # Handle each conversion based on config or convert_to
     for target_ext in output_exts:
         try:
+            converted = False
+            
             if ext == ".doc":
                 if target_ext == "docx":
                     outputs.append(doc_to_docx(file_path))
+                    converted = True
                 elif target_ext == "pdf":
-                    outputs.append(_libreoffice_convert(file_path, "pdf"))
+                    try:
+                        outputs.append(_libreoffice_convert(file_path, "pdf"))
+                        converted = True
+                    except RuntimeError:
+                        outputs.append(_abiword_convert(file_path, "pdf"))
+                        converted = True
+            elif ext in [".docx", ".rtf", ".odt"]:
+                if target_ext == "pdf":
+                    try:
+                        outputs.append(_libreoffice_convert(file_path, "pdf"))
+                        converted = True
+                    except RuntimeError:
+                        outputs.append(_abiword_convert(file_path, "pdf"))
+                        converted = True
             elif ext in [".xls", ".xlsm"]:
                 if target_ext == "xlsx":
                     outputs.append(xls_to_xlsx(file_path))
+                    converted = True
             elif ext == ".ppt":
                 if target_ext == "pptx":
                     outputs.append(ppt_to_pptx(file_path))
+                    converted = True
                 elif target_ext == "pdf":
                     outputs.append(_libreoffice_convert(file_path, "pdf"))
+                    converted = True
             elif ext == ".hwp":
                 if target_ext == "pdf":
                     outputs.append(hwp_to_pdf(file_path))
+                    converted = True
             elif ext == ".mht":
                 if target_ext == "html":
                     outputs.append(mht_to_html(file_path))
+                    converted = True
+            
+            # convert_to가 지정되었지만 지원하지 않는 변환인 경우 fallback 시도
+            if convert_to and not converted:
+                print(f"🔄 Trying LibreOffice conversion: {ext} → {target_ext}")
+                try:
+                    outputs.append(_libreoffice_convert(file_path, target_ext))
+                    converted = True
+                except Exception as lo_e:
+                    print(f"❌ LibreOffice conversion failed: {lo_e}")
+                    # Try AbiWord as fallback for document formats
+                    if target_ext in ["pdf", "docx", "rtf", "odt", "txt"]:
+                        print(f"🔄 Trying AbiWord conversion: {ext} → {target_ext}")
+                        try:
+                            outputs.append(_abiword_convert(file_path, target_ext))
+                            converted = True
+                        except Exception as abi_e:
+                            print(f"❌ AbiWord conversion failed: {abi_e}")
+            
+            if convert_to and not converted:
+                print(f"⚠️ Conversion {ext} → {target_ext} is not supported")
+            
+
         except Exception as e:
             print(f"⚠️ {ext.upper()}→{target_ext.upper()} failed for {file_path}: {e}")
-            import traceback
-            traceback.print_exc()
+            if convert_to:
+                # convert_to가 지정된 경우 실패해도 계속 진행하지 않음
+                print(f"❌ Conversion to {target_ext} failed, skipping...")
+            else:
+                import traceback
+                traceback.print_exc()
 
     
     return outputs
