@@ -28,6 +28,11 @@ RUN apt-get update && apt-get install -y \
     libreoffice-writer \
     libreoffice-calc \
     libreoffice-impress \
+    # pyhwp dependencies
+    libxml2 \
+    libxslt1.1 \
+    libjpeg62-turbo \
+    zlib1g \
     # AbiWord (fallback for document conversion)
     abiword \
     # Virtual display for headless operation
@@ -54,8 +59,7 @@ COPY src/ ./src/
 # Install dependencies using uv
 RUN uv sync --frozen --no-dev
 
-# Create directories for file processing
-RUN mkdir -p /app/uploads /app/converted_files
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Expose port
 EXPOSE 8000
