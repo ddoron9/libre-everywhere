@@ -46,13 +46,13 @@ WORKDIR /app
 # Copy project files
 COPY pyproject.toml ./
 COPY uv.lock* ./
+COPY README.md ./
+
+# Copy application code first (needed for build)
+COPY src/ ./src/
 
 # Install dependencies using uv
 RUN uv sync --frozen --no-dev
-
-# Copy application code
-COPY src/ ./src/
-COPY README.md ./
 
 # Create directories for file processing
 RUN mkdir -p /app/uploads /app/converted_files
