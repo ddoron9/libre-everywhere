@@ -65,12 +65,6 @@ class ConvertResponse(BaseModel):
     total_files: int
 
 
-@app.get("/")
-async def root():
-    logger.info("Health check requested")
-    return {"message": "File Converter API is running", "status": "healthy"}
-
-
 @app.get("/supported-formats")
 async def get_supported_formats(api_key_valid: bool = Depends(verify_api_key)):
     from src.convert import CONVERSION_MAPPINGS 
